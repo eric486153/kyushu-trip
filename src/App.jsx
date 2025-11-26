@@ -311,8 +311,8 @@ const ItineraryApp = () => {
                 key={index}
                 onClick={() => setActiveDay(index)}
                 className={`flex-shrink-0 px-3 py-3 rounded-lg flex flex-col items-center min-w-[70px] transition-all duration-300 border ${activeDay === index
-                    ? "bg-[#B93A32] text-white border-[#B93A32] shadow-md"
-                    : "bg-white text-[#8C8C8C] border-transparent hover:bg-[#FAF7F2]"
+                  ? "bg-[#B93A32] text-white border-[#B93A32] shadow-md"
+                  : "bg-white text-[#8C8C8C] border-transparent hover:bg-[#FAF7F2]"
                   }`}
               >
                 <span className="text-[10px] tracking-wider mb-1 opacity-80 uppercase">Day {item.day}</span>
