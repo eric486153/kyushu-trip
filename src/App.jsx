@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { MapPin, Utensils, Calendar, Home, Coffee, Sun, Moon, Leaf, Plus, Trash2, PenTool, Save, RotateCcw } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { MapPin, Utensils, Calendar, Home, Coffee, Sun, Moon, Leaf, Plus, Trash2, PenTool, Save, RotateCcw, Camera, Image as ImageIcon, X } from 'lucide-react';
 
 const ItineraryApp = () => {
   const [activeDay, setActiveDay] = useState(0);
 
-  // 筆記狀態管理：修改為從 localStorage 讀取
+  // 筆記狀態管理：從 localStorage 讀取
   const [notes, setNotes] = useState(() => {
     try {
       const savedNotes = localStorage.getItem('kyushu_trip_notes_v1');
@@ -21,12 +21,74 @@ const ItineraryApp = () => {
       localStorage.setItem('kyushu_trip_notes_v1', JSON.stringify(notes));
     } catch (error) {
       console.error("儲存失敗", error);
+      // 如果儲存失敗（通常是因為圖片太多導致空間不足），給予提示
+      if (error.name === 'QuotaExceededError') {
+        alert("儲存空間已滿！建議刪除一些舊圖片以釋放空間。");
+      }
     }
   }, [notes]);
 
+  // 圖片壓縮處理函數 (為了節省 localStorage 空間)
+  const resizeImage = (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800; // 限制最大寬度
+          const scaleSize = MAX_WIDTH / img.width;
+
+          // 如果圖片比限制小，就不縮放
+          const width = scaleSize < 1 ? MAX_WIDTH : img.width;
+          const height = scaleSize < 1 ? img.height * scaleSize : img.height;
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // 轉換為壓縮後的 base64 字串 (JPEG 格式, 品質 0.7)
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
+        };
+      };
+    });
+  };
+
+  // 處理圖片上傳
+  const handleImageUpload = async (noteId, e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      const resizedImage = await resizeImage(file);
+      setNotes(prev => ({
+        ...prev,
+        [activeDay]: prev[activeDay].map(note =>
+          note.id === noteId ? { ...note, image: resizedImage } : note
+        )
+      }));
+    } catch (error) {
+      console.error("圖片處理失敗", error);
+      alert("圖片處理失敗，請重試");
+    }
+  };
+
+  // 刪除圖片
+  const removeImage = (noteId) => {
+    setNotes(prev => ({
+      ...prev,
+      [activeDay]: prev[activeDay].map(note =>
+        note.id === noteId ? { ...note, image: null } : note
+      )
+    }));
+  };
+
   // 新增記事
   const addNote = () => {
-    const newNote = { id: Date.now(), text: '' };
+    const newNote = { id: Date.now(), text: '', image: null };
     setNotes(prev => ({
       ...prev,
       [activeDay]: [...(prev[activeDay] || []), newNote]
@@ -53,7 +115,7 @@ const ItineraryApp = () => {
 
   // 清除所有資料（重置用）
   const resetAllData = () => {
-    if (window.confirm('確定要刪除所有筆記嗎？此動作無法復原。')) {
+    if (window.confirm('確定要刪除所有筆記與照片嗎？此動作無法復原。')) {
       setNotes({});
       localStorage.removeItem('kyushu_trip_notes_v1');
     }
@@ -278,9 +340,9 @@ const ItineraryApp = () => {
 
         <div className="max-w-4xl mx-auto relative z-10 text-center md:text-left">
           <div className="inline-flex items-center space-x-2 mb-4 border border-white/30 px-4 py-1.5 rounded-full bg-[#8B2E28]/40 backdrop-blur-sm">
-            <span className="text-sm font-medium tracking-widest">緣點旅行社</span>
+            <span className="text-sm font-medium tracking-widest">超ㄅㄧㄤ旅行社</span>
             <span className="w-1 h-1 bg-white rounded-full"></span>
-            <span className="text-sm font-medium tracking-widest">趙俊童</span>
+            <span className="text-sm font-medium tracking-widest">好玩的測試</span>
           </div>
           <h1 className="text-4xl md:text-5xl font-bold mb-4 tracking-wide font-serif leading-tight">
             楓賞北九州<br />
@@ -311,8 +373,8 @@ const ItineraryApp = () => {
                 key={index}
                 onClick={() => setActiveDay(index)}
                 className={`flex-shrink-0 px-3 py-3 rounded-lg flex flex-col items-center min-w-[70px] transition-all duration-300 border ${activeDay === index
-                  ? "bg-[#B93A32] text-white border-[#B93A32] shadow-md"
-                  : "bg-white text-[#8C8C8C] border-transparent hover:bg-[#FAF7F2]"
+                    ? "bg-[#B93A32] text-white border-[#B93A32] shadow-md"
+                    : "bg-white text-[#8C8C8C] border-transparent hover:bg-[#FAF7F2]"
                   }`}
               >
                 <span className="text-[10px] tracking-wider mb-1 opacity-80 uppercase">Day {item.day}</span>
@@ -433,43 +495,79 @@ const ItineraryApp = () => {
               {/* 手札裝飾標題 */}
               <div className="absolute -top-4 left-6 bg-[#4A3B32] text-[#FDFCF8] px-4 py-1.5 rounded shadow-sm flex items-center">
                 <PenTool className="w-4 h-4 mr-2" />
-                <span className="text-sm font-medium tracking-widest">旅途手札・自動儲存中</span>
+                <span className="text-sm font-medium tracking-widest">旅途手札・圖文紀錄</span>
               </div>
               <div className="absolute -top-4 right-6 flex items-center space-x-2">
                 <span className="flex items-center text-[10px] text-[#2C7A7B] bg-[#E6F4F1] px-2 py-1 rounded-full">
-                  <Save className="w-3 h-3 mr-1" /> 已啟用自動儲存
+                  <Save className="w-3 h-3 mr-1" /> 自動儲存中
                 </span>
                 <button onClick={resetAllData} className="flex items-center text-[10px] text-[#C53030] bg-[#FFF5F5] px-2 py-1 rounded-full hover:bg-red-100 transition-colors" title="刪除所有筆記">
                   <RotateCcw className="w-3 h-3 mr-1" /> 重置
                 </button>
               </div>
 
-              <div className="mt-4 space-y-4">
+              <div className="mt-4 space-y-6">
                 {/* 顯示當天的記事列表 */}
                 {(notes[activeDay] || []).length > 0 ? (
                   (notes[activeDay] || []).map((note) => (
-                    <div key={note.id} className="flex items-center group animate-fade-in">
-                      <div className="flex-1 relative">
-                        <input
-                          type="text"
-                          value={note.text}
-                          onChange={(e) => updateNote(note.id, e.target.value)}
-                          placeholder="請輸入記事..."
-                          className="w-full bg-transparent border-b border-[#E5E0D8] py-2 px-1 text-[#4A3B32] placeholder-gray-300 focus:outline-none focus:border-[#B93A32] transition-colors"
-                        />
+                    <div key={note.id} className="group border-b border-[#E5E0D8] pb-4 last:border-0 animate-fade-in">
+                      {/* 文字輸入區塊 */}
+                      <div className="flex items-center mb-2">
+                        <div className="flex-1 relative">
+                          <input
+                            type="text"
+                            value={note.text}
+                            onChange={(e) => updateNote(note.id, e.target.value)}
+                            placeholder="請輸入記事..."
+                            className="w-full bg-transparent border-none py-2 px-1 text-[#4A3B32] placeholder-gray-300 focus:outline-none focus:ring-0 text-base"
+                          />
+                        </div>
+
+                        {/* 操作按鈕群 */}
+                        <div className="flex items-center space-x-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                          {/* 圖片上傳按鈕 */}
+                          <label className="cursor-pointer p-2 hover:bg-gray-100 rounded-full text-gray-500 hover:text-[#D96B43] transition-colors relative">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handleImageUpload(note.id, e)}
+                            />
+                            <Camera className="w-4 h-4" />
+                          </label>
+
+                          {/* 刪除記事按鈕 */}
+                          <button
+                            onClick={() => deleteNote(note.id)}
+                            className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-full transition-colors"
+                            title="刪除"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => deleteNote(note.id)}
-                        className="ml-2 text-gray-300 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="刪除"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+
+                      {/* 圖片顯示區塊 */}
+                      {note.image && (
+                        <div className="relative inline-block mt-2 ml-1">
+                          <img
+                            src={note.image}
+                            alt="Note attachment"
+                            className="h-32 w-auto object-cover rounded-lg shadow-sm border border-[#E5E0D8]"
+                          />
+                          <button
+                            onClick={() => removeImage(note.id)}
+                            className="absolute -top-2 -right-2 bg-white rounded-full p-1 shadow border border-gray-200 text-gray-500 hover:text-red-500"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (
                   <div className="text-center py-6 text-gray-300 text-sm italic border-2 border-dashed border-[#F0EBE5] rounded-lg">
-                    點擊下方按鈕，開始記錄這一天的心情與花費...
+                    點擊下方按鈕，開始記錄這一天的心情、花費或照片...
                   </div>
                 )}
 
